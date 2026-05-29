@@ -1,0 +1,13 @@
+# cloned reference repo (Taoshi PTN/Vanta) — not ours, large
+research/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# os
+.DS_Store
