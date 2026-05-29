@@ -50,3 +50,27 @@ reverting and daily trend stopped paying.
 - Genuine paths to materially higher edge require resources beyond daily OHLC:
   **intraday/tick microstructure data, alternative data, or execution-level
   signals** — not further re-tuning of the same daily signals.
+
+## HFT / intraday tested on real fetched data (Binance Vision hourly, 2021-2026)
+
+I fetched 46,690 hourly bars/coin (BTC/ETH/SOL) and tested intraday strategies
+net of Vanta's real crypto cost (0.1% per unit turnover):
+
+| strategy | turnover/day | full-sample | recent 4-mo | win rate |
+|---|--:|--:|--:|--:|
+| hourly mean-reversion (6-48h) | 5-14× | **−100%** | −55 to −87% | 46-48% |
+| hourly momentum (12-168h) | 1.7-6.8× | −83 to −100% | −7 to −37% | 45-49% |
+| 2-week momentum (336h) | 1.1× | +36% | +29% | 50% |
+| forex hourly reversal (yfinance) | 0.6-2.7× | −46 to −93% | −4 to −34% | 38-48% |
+
+**Verdict: HFT/intraday is structurally impossible on Vanta.** The 0.1%/turnover
+crypto spread fee turns any frequency above ~weekly into a guaranteed loss
+(turnover × 0.1% per day overwhelms the edge). The only "intraday" config that
+survives is 2-week momentum — i.e. the daily strategy already built — at a
+coin-flip 50% win rate and 68% drawdown. Win rates everywhere cluster at 45-50%:
+there is no high-certainty edge in this data at any frequency net of costs.
+
+## Stat-arb / cointegration pairs (low-frequency, high-certainty attempt)
+Gold/Silver, ETH/BTC, V/MA, MSFT/AAPL, SPY/QQQ, XLK/QQQ, etc.: full-sample
+−85% to +39%, **win rates 45-49%**, drawdowns 18-96%. Spreads trend/break rather
+than mean-revert reliably — no high-certainty edge.
