@@ -56,12 +56,12 @@ class SignalClient:
 
 class VantaMiner:
     def __init__(self, cfg: StrategyConfig, asset: AssetSpec, client: SignalClient,
-                 account_mode="challenge", dd_window=25, max_steps=2, cooldown_s=5):
+                 account_mode="challenge", dd_window=None, max_steps=2, cooldown_s=5):
         self.cfg = cfg
         self.asset = asset
         self.client = client
         self.state = MinerState()
-        self.dd_window = dd_window
+        self.dd_window = dd_window or getattr(cfg, "dd_window", 25)
         self.max_steps = max_steps
         self.cooldown_s = cooldown_s
         self._eq_hist = [1.0]
@@ -79,14 +79,10 @@ class VantaMiner:
         if hwm_dd >= cfg.kill_switch_dd:
             return 0.0
         if roll_dd <= cfg.dd_throttle_start:
-            base = 1.0
-        else:
-            span = cfg.dd_throttle_floor - cfg.dd_throttle_start
-            base = 0.0 if span <= 0 else max(0.0, 1.0 - (roll_dd - cfg.dd_throttle_start) / span)
-        kill_room = cfg.kill_switch_dd - cfg.dd_throttle_start
-        if kill_room > 0 and hwm_dd > cfg.dd_throttle_start:
-            base = min(base, max(0.0, 1.0 - (hwm_dd - cfg.dd_throttle_start) / kill_room))
-        return float(base)
+            return 1.0
+        span = cfg.dd_throttle_floor - cfg.dd_throttle_start
+        base = 1.0 if span <= 0 else 1.0 - (roll_dd - cfg.dd_throttle_start) / span
+        return float(max(getattr(cfg, "dd_throttle_min", 0.0), min(1.0, base)))
 
     def compute_targets(self, market) -> pd.Series:
         prepared = Strategy(self.cfg, self.asset).prepare(market)

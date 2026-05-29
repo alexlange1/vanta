@@ -5,13 +5,18 @@
 * Carry fee: ``asset.carry_per_day_per_1x`` * gross leverage per day.
 * Spread fee: ``asset.spread_fee_per_turnover`` * turnover (crypto 0.1%).
 * Slippage: ``asset.slippage_bps`` * turnover.
-* Intraday adverse excursion from daily High/Low to catch the 5% intraday
-  elimination.
-* Survival governor: recovery-capable rolling-window drawdown throttle + a hard
-  all-time-HWM kill-switch (the elimination backstop).
+* Intraday adverse excursion from daily High/Low to catch the 5% intraday limit.
+
+Survival governor (recovery-capable):
+  - Throttle scales gross down on the rolling-window drawdown but never below
+    ``dd_throttle_min`` (so the book recovers after a drawdown instead of
+    locking off forever).
+  - A hard kill-switch on the all-time-HWM drawdown flattens the book before the
+    elimination line — the rare backstop.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
@@ -41,11 +46,11 @@ class BacktestResult:
 
 class VantaBacktester:
     def __init__(self, cfg: StrategyConfig, asset: AssetSpec, account_mode: str = "challenge",
-                 dd_window: int = 25):
+                 dd_window: int = None):
         self.cfg = cfg
         self.asset = asset
         self.capital = asset.default_capital
-        self.dd_window = dd_window
+        self.dd_window = dd_window or getattr(cfg, "dd_window", 25)
         if account_mode == "challenge":
             self.intraday_limit = asset.challenge_intraday_dd
             self.eod_limit = asset.challenge_eod_dd
@@ -175,14 +180,10 @@ class VantaBacktester:
         if hwm_dd >= cfg.kill_switch_dd:
             return 0.0
         if roll_dd <= cfg.dd_throttle_start:
-            base = 1.0
-        else:
-            span = cfg.dd_throttle_floor - cfg.dd_throttle_start
-            base = 0.0 if span <= 0 else max(0.0, 1.0 - (roll_dd - cfg.dd_throttle_start) / span)
-        kill_room = cfg.kill_switch_dd - cfg.dd_throttle_start
-        if kill_room > 0 and hwm_dd > cfg.dd_throttle_start:
-            base = min(base, max(0.0, 1.0 - (hwm_dd - cfg.dd_throttle_start) / kill_room))
-        return float(base)
+            return 1.0
+        span = cfg.dd_throttle_floor - cfg.dd_throttle_start
+        base = 1.0 if span <= 0 else 1.0 - (roll_dd - cfg.dd_throttle_start) / span
+        return float(max(getattr(cfg, "dd_throttle_min", 0.0), min(1.0, base)))
 
 
 def evaluate_challenges(result: BacktestResult, asset: AssetSpec, window_days=90, step=10) -> dict:
@@ -202,3 +203,17 @@ def evaluate_challenges(result: BacktestResult, asset: AssetSpec, window_days=90
     total = passes + fails
     return {"windows": total, "pass_rate_pct": 100.0 * passes / total if total else 0.0,
             "breach_rate_pct": 100.0 * breaches / total if total else 0.0}
+
+
+def rolling_window_stats(result: BacktestResult, window_days: int, days_in_year: int) -> dict:
+    """Fraction of rolling windows with positive return + median window return."""
+    eq = result.equity
+    rets = []
+    for s in range(0, max(0, len(eq) - window_days), 5):
+        w = eq.iloc[s:s + window_days]
+        rets.append(w.iloc[-1] / w.iloc[0] - 1.0)
+    if not rets:
+        return {"pct_positive": 0.0, "median_ret_pct": 0.0, "n": 0}
+    rets = np.array(rets)
+    return {"pct_positive": float((rets > 0).mean() * 100.0),
+            "median_ret_pct": float(np.median(rets) * 100.0), "n": len(rets)}

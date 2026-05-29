@@ -39,7 +39,7 @@ def run_cli(asset: AssetSpec, strategies, data_dir: str, results_dir: str):
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ["data", "backtest", "recent", "cohort", "report", "miner"]:
         p = sub.add_parser(name)
-        p.add_argument("--config", default="v3")
+        p.add_argument("--config", default="v4")
         p.add_argument("--mode", default="challenge", choices=["challenge", "funded"])
         p.add_argument("--start", default="2015-01-01")
         p.add_argument("--end", default=None)
@@ -130,9 +130,9 @@ def generate_report(asset, strategies, market, results_dir):
                              f"{s['ch_ret_pct'].median():+.2f} | {s['ch_dd_pct'].quantile(.95):.2f} |")
         lines.append("")
 
-    cfg = strategies.get("v3")
+    cfg = strategies.get("v4")
     end = market["close"].index.max()
-    lines.append("## Recent performance (v3, continuous)\n")
+    lines.append("## Recent performance (v4, continuous)\n")
     lines.append("| window | total ret% | vol% | Sharpe | Calmar | max dd% | eliminated |")
     lines.append("|---|--:|--:|--:|--:|--:|:--:|")
     for lbl, months in [("recent 4mo", 4), ("recent 12mo", 12), ("recent 24mo", 24)]:
